@@ -1,0 +1,19 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.log
+.env
+.env.local
+!.env.example
+.DS_Store
+uploads/
+deploy/k8s/secret.yaml
+*.tsbuildinfo
+next-env.d.ts
+.next-prod/
+
+# Local editor / AI-tool settings (not part of the app)
+.cursor/
+.claude/
