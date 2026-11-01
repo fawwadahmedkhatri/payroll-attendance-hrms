@@ -1,0 +1,21 @@
+# One-off job that loads ~500 sample employees. Run after the API is up:
+#   kubectl apply -f deploy/k8s/seed-job.yaml && kubectl -n hrms logs -f job/hrms-seed
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: hrms-seed
+  namespace: hrms
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: seed
+          image: payroll-hrms-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["node", "dist/prisma/seed.js"]
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef: { name: hrms-secrets, key: DATABASE_URL }

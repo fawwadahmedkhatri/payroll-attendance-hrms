@@ -1,0 +1,279 @@
+@import "tailwindcss";
+
+/* Dark mode is class-based (.dark on <html>), set by the theme provider: light / dark / system */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ───────────────────────────── Design tokens ─────────────────────────────
+   One brand colour drives the whole accent scale, so an organisation can
+   re-theme the app by overriding these at runtime (lib/branding.tsx sets them from
+   the organisation's Branding settings). */
+:root {
+  --brand: #3a5ce0;
+  --brand-glow: #36b3e6;
+  /* Text on brand-coloured surfaces: white or near-black, chosen for contrast */
+  --brand-fg: #ffffff;
+
+  /* Corner style: sharp 0.35 · soft 0.65 · rounded 1 (scales every rounded-* utility) */
+  --radius-scale: 1;
+  --radius-md: calc(0.375rem * var(--radius-scale));
+  --radius-lg: calc(0.5rem * var(--radius-scale));
+  --radius-xl: calc(0.75rem * var(--radius-scale));
+  --radius-2xl: calc(1rem * var(--radius-scale));
+
+  --canvas: oklch(0.975 0.004 250);
+  --surface: oklch(1 0 0);
+  --surface-2: oklch(0.985 0.003 250);
+  --border: oklch(0.92 0.008 255);
+  --ring: color-mix(in oklab, var(--brand) 35%, transparent);
+
+  --shadow-elevated:
+    0 1px 0 0 oklch(1 0 0 / 0.7) inset,
+    0 1px 2px oklch(0.2 0.03 260 / 0.05),
+    0 8px 24px -12px oklch(0.2 0.03 260 / 0.14);
+  --shadow-floating:
+    0 1px 0 0 oklch(1 0 0 / 0.6) inset,
+    0 2px 6px oklch(0.2 0.03 260 / 0.06),
+    0 24px 48px -16px oklch(0.2 0.03 260 / 0.25);
+
+  color-scheme: light;
+}
+
+.dark {
+  --canvas: oklch(0.165 0.018 262);
+  --surface: oklch(0.205 0.02 262);
+  --surface-2: oklch(0.235 0.022 262);
+  --border: oklch(0.29 0.022 262);
+  --ring: color-mix(in oklab, var(--brand) 55%, transparent);
+
+  --shadow-elevated:
+    0 1px 0 0 oklch(1 0 0 / 0.05) inset,
+    0 1px 2px oklch(0 0 0 / 0.3),
+    0 10px 30px -14px oklch(0 0 0 / 0.6);
+  --shadow-floating:
+    0 1px 0 0 oklch(1 0 0 / 0.07) inset,
+    0 2px 8px oklch(0 0 0 / 0.35),
+    0 30px 60px -20px oklch(0 0 0 / 0.75);
+
+  color-scheme: dark;
+
+  /* Neutrals: existing slate-* classes flip to a dark-friendly scale */
+  --color-slate-50: oklch(0.24 0.02 260);
+  --color-slate-100: oklch(0.27 0.022 260);
+  --color-slate-200: oklch(0.31 0.024 260);
+  --color-slate-300: oklch(0.39 0.026 260);
+  --color-slate-400: oklch(0.56 0.03 258);
+  --color-slate-500: oklch(0.68 0.028 256);
+  --color-slate-600: oklch(0.76 0.024 255);
+  --color-slate-700: oklch(0.84 0.018 255);
+  --color-slate-800: oklch(0.91 0.012 255);
+  --color-slate-900: oklch(0.96 0.006 250);
+  --color-slate-950: oklch(0.985 0.003 248);
+
+  /* Status colours: light tints become translucent dark tints, dark text becomes light text */
+  --color-emerald-50: oklch(0.696 0.17 162.48 / 0.13);
+  --color-emerald-100: oklch(0.696 0.17 162.48 / 0.2);
+  --color-emerald-700: oklch(0.845 0.143 164.978);
+  --color-emerald-800: oklch(0.905 0.093 164.15);
+  --color-rose-50: oklch(0.645 0.246 16.439 / 0.13);
+  --color-rose-100: oklch(0.645 0.246 16.439 / 0.2);
+  --color-rose-700: oklch(0.81 0.117 11.638);
+  --color-rose-800: oklch(0.892 0.058 10.001);
+  --color-amber-50: oklch(0.769 0.188 70.08 / 0.13);
+  --color-amber-100: oklch(0.769 0.188 70.08 / 0.2);
+  --color-amber-700: oklch(0.879 0.169 91.605);
+  --color-amber-800: oklch(0.924 0.12 95.746);
+  --color-sky-50: oklch(0.685 0.169 237.323 / 0.13);
+  --color-sky-100: oklch(0.685 0.169 237.323 / 0.2);
+  --color-sky-700: oklch(0.828 0.111 230.318);
+  --color-sky-800: oklch(0.901 0.058 230.902);
+  --color-violet-50: oklch(0.606 0.25 292.717 / 0.13);
+  --color-violet-100: oklch(0.606 0.25 292.717 / 0.2);
+  --color-violet-700: oklch(0.811 0.111 293.571);
+  --color-violet-800: oklch(0.894 0.057 293.283);
+}
+
+@theme inline {
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-line: var(--border);
+
+  /* `@theme inline` copies these values into utilities, so they must point at runtime
+     variables (--brand-*) — that is what lets dark mode and org branding change them */
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-900: var(--brand-900);
+  --color-brand-glow: var(--brand-glow);
+
+  --animate-rise: rise 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+  --animate-float: float 7s ease-in-out infinite;
+  --animate-scan: scan 2.4s ease-in-out infinite;
+}
+
+/* Brand shade scale, derived from the single --brand colour */
+:root {
+  --brand-50: color-mix(in oklab, var(--brand) 9%, var(--surface));
+  --brand-100: color-mix(in oklab, var(--brand) 16%, var(--surface));
+  --brand-200: color-mix(in oklab, var(--brand) 30%, var(--surface));
+  --brand-300: color-mix(in oklab, var(--brand) 55%, white);
+  --brand-400: color-mix(in oklab, var(--brand) 75%, white);
+  --brand-500: color-mix(in oklab, var(--brand) 88%, white);
+  --brand-700: color-mix(in oklab, var(--brand) 82%, black);
+  --brand-800: color-mix(in oklab, var(--brand) 65%, black);
+  --brand-900: color-mix(in oklab, var(--brand) 45%, black);
+}
+
+/* Dark mode: tints get stronger on dark surfaces, and "dark" brand text becomes light to keep contrast */
+.dark {
+  --brand-50: color-mix(in oklab, var(--brand) 14%, var(--surface));
+  --brand-100: color-mix(in oklab, var(--brand) 24%, var(--surface));
+  --brand-200: color-mix(in oklab, var(--brand) 38%, var(--surface));
+  --brand-700: color-mix(in oklab, var(--brand) 50%, white);
+  --brand-800: color-mix(in oklab, var(--brand) 35%, white);
+  --brand-900: color-mix(in oklab, var(--brand) 20%, white);
+}
+
+/* ───────────────────────────── Base ───────────────────────────── */
+
+html,
+body {
+  background: var(--canvas);
+  color: var(--color-slate-900);
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+body {
+  min-height: 100vh;
+}
+
+/* Soft brand-tinted light from the top: depth by lighting, not by decoration */
+.app-canvas {
+  background:
+    radial-gradient(1200px 500px at 70% -10%, color-mix(in oklab, var(--brand) 9%, transparent), transparent 70%),
+    radial-gradient(900px 400px at -10% 10%, color-mix(in oklab, var(--brand-glow) 7%, transparent), transparent 70%),
+    var(--canvas);
+}
+
+.elevated {
+  background: var(--surface);
+  box-shadow: var(--shadow-elevated);
+}
+
+.floating {
+  background: var(--surface);
+  box-shadow: var(--shadow-floating);
+}
+
+.glass {
+  background: color-mix(in oklab, var(--surface) 72%, transparent);
+  backdrop-filter: saturate(160%) blur(14px);
+  -webkit-backdrop-filter: saturate(160%) blur(14px);
+}
+
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+:focus-visible {
+  outline: 2px solid var(--ring);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: color-mix(in oklab, var(--brand) 25%, transparent);
+}
+
+/* Thin, theme-aware scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-slate-300) transparent;
+}
+
+/* ───────────────────────────── Motion ───────────────────────────── */
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes shimmer {
+  from {
+    background-position: -200% 0;
+  }
+  to {
+    background-position: 200% 0;
+  }
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translate3d(0, 0, var(--z, 0px));
+  }
+  50% {
+    transform: translate3d(0, -10px, var(--z, 0px));
+  }
+}
+
+@keyframes scan {
+  0%,
+  100% {
+    top: 12%;
+  }
+  50% {
+    top: 82%;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(
+    90deg,
+    var(--color-slate-100) 0%,
+    var(--color-slate-50) 50%,
+    var(--color-slate-100) 100%
+  );
+  background-size: 200% 100%;
+  animation: var(--animate-shimmer);
+}
+
+/* Table rows fade in with a short stagger (index set inline as --i) */
+.row-in {
+  animation: rise 0.35s cubic-bezier(0.22, 1, 0.36, 1) both;
+  animation-delay: calc(min(var(--i, 0), 12) * 18ms);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  .app-canvas {
+    background: white;
+  }
+}

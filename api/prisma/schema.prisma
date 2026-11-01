@@ -1,0 +1,456 @@
+// Payroll, Attendance & Leave Management System — database schema
+// Everything that varies by company or country (shifts, late rules, leave types,
+// pay components, currency, timezone) is stored as data, not hard-coded.
+
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-musl-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────── Enums ───────────────────────────────
+
+enum Role {
+  ADMIN
+  HR
+  EMPLOYEE
+}
+
+enum EmployeeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AttendanceStatus {
+  PRESENT
+  HALF_DAY
+  ABSENT
+  ON_LEAVE
+  HOLIDAY
+  WEEKLY_OFF
+}
+
+enum PunchSource {
+  DEVICE
+  SIMULATOR
+  IMPORT
+  MANUAL
+}
+
+enum LeaveStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum ComponentKind {
+  EARNING
+  DEDUCTION
+  EMPLOYER_CONTRIBUTION
+}
+
+enum CalcType {
+  FIXED // flat amount
+  PERCENTAGE // % of the sum of base components
+  SLAB // amount looked up from ranges (tax brackets etc.)
+}
+
+enum SlabMode {
+  PROGRESSIVE // each band taxed at its own rate (income-tax style)
+  FLAT // the band the base falls into decides the amount/rate
+}
+
+enum SlabPeriod {
+  MONTHLY
+  ANNUAL // base is annualised (x12) and the result divided by 12
+}
+
+enum LateDeductionMode {
+  NONE
+  COUNT_BASED // every N late marks = X days of pay deducted
+  PER_MINUTE // per-minute rate x total late minutes
+}
+
+enum DayDivisorMode {
+  CALENDAR_DAYS // per-day pay = monthly / days in month
+  WORKING_DAYS // per-day pay = monthly / working days in month
+  FIXED_DAYS // per-day pay = monthly / fixedPayDays (e.g. 26 or 30)
+}
+
+enum PayrollStatus {
+  DRAFT
+  FINALIZED
+}
+
+// ─────────────────────────── Configuration ───────────────────────────
+
+model CompanySettings {
+  id                  Int               @id @default(1)
+  companyName         String
+  address             String?
+  countryCode         String            @default("US")
+  currencyCode        String            @default("USD")
+  currencySymbol      String            @default("$")
+  timezone            String            @default("UTC")
+  /// 0 = Sunday … 6 = Saturday
+  weeklyOffDays       Int[]             @default([0])
+  payDivisorMode      DayDivisorMode    @default(CALENDAR_DAYS)
+  fixedPayDays        Int               @default(30)
+  lateDeductionMode   LateDeductionMode @default(COUNT_BASED)
+  latesPerPenalty     Int               @default(3)
+  latePenaltyDays     Float             @default(0.5)
+
+  // ── Branding (white-label): applied to the web app at runtime ──
+  productName         String            @default("PayTrack HRMS")
+  /// Main accent colour, hex (#RRGGBB)
+  brandColor          String            @default("#3a5ce0")
+  /// Secondary glow / chart colour, hex (#RRGGBB)
+  accentColor         String            @default("#36b3e6")
+  /// Logo as a data URL (PNG/JPEG/SVG/WebP, max ~300 KB) so no file storage is needed
+  logoDataUrl         String?
+  /// Theme used until a user picks their own: light | dark | system
+  defaultTheme        String            @default("system")
+  /// Corner style: sharp | soft | rounded
+  cornerStyle         String            @default("rounded")
+  updatedAt           DateTime          @updatedAt
+}
+
+model Shift {
+  id              Int        @id @default(autoincrement())
+  name            String     @unique
+  /// "HH:mm" in company timezone
+  startTime       String
+  endTime         String
+  graceMinutes    Int        @default(15)
+  /// Worked hours below this mark the day as HALF_DAY
+  minFullDayHours Float      @default(8)
+  /// Worked hours below this mark the day as ABSENT
+  minHalfDayHours Float      @default(4)
+  isDefault       Boolean    @default(false)
+  isActive        Boolean    @default(true)
+  employees       Employee[]
+}
+
+model Holiday {
+  id   Int      @id @default(autoincrement())
+  date DateTime @unique @db.Date
+  name String
+}
+
+model Department {
+  id        Int        @id @default(autoincrement())
+  code      String     @unique
+  name      String     @unique
+  employees Employee[]
+}
+
+model Designation {
+  id        Int        @id @default(autoincrement())
+  title     String     @unique
+  employees Employee[]
+}
+
+// ───────────────────────────── People ─────────────────────────────
+
+model User {
+  id           Int       @id @default(autoincrement())
+  email        String    @unique
+  passwordHash String
+  role         Role      @default(EMPLOYEE)
+  isActive     Boolean   @default(true)
+  employeeId   Int?      @unique
+  employee     Employee? @relation(fields: [employeeId], references: [id])
+  lastLoginAt  DateTime?
+  createdAt    DateTime  @default(now())
+
+  reviewedLeaves LeaveRequest[] @relation("LeaveReviewer")
+  auditLogs      AuditLog[]
+}
+
+model Employee {
+  id            Int            @id @default(autoincrement())
+  employeeCode  String         @unique
+  /// ID enrolled on the fingerprint / face device (defaults to employeeCode)
+  biometricId   String?        @unique
+  firstName     String
+  lastName      String
+  email         String         @unique
+  phone         String?
+  gender        String?
+  dateOfBirth   DateTime?      @db.Date
+  dateOfJoining DateTime       @db.Date
+  dateOfExit    DateTime?      @db.Date
+  status        EmployeeStatus @default(ACTIVE)
+  departmentId  Int
+  department    Department     @relation(fields: [departmentId], references: [id])
+  designationId Int
+  designation   Designation    @relation(fields: [designationId], references: [id])
+  shiftId       Int
+  shift         Shift          @relation(fields: [shiftId], references: [id])
+  /// Monthly base salary; pay components are calculated from it
+  baseSalary    Decimal        @db.Decimal(12, 2)
+  bankName      String?
+  bankAccount   String?
+  taxId         String?
+  address       String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  user               User?
+  punches            Punch[]
+  attendanceDays     AttendanceDay[]
+  leaveBalances      LeaveBalance[]
+  leaveRequests      LeaveRequest[]
+  componentOverrides EmployeeComponentOverride[]
+  payslips           Payslip[]
+
+  @@index([status])
+  @@index([departmentId])
+}
+
+// ──────────────────────────── Attendance ────────────────────────────
+
+model Device {
+  id           Int       @id @default(autoincrement())
+  name         String
+  serialNumber String    @unique
+  location     String?
+  /// SHA-256 of the device API key; the raw key is shown once at creation
+  apiKeyHash   String    @unique
+  apiKeyPrefix String
+  isActive     Boolean   @default(true)
+  lastSeenAt   DateTime?
+  createdAt    DateTime  @default(now())
+  punches      Punch[]
+}
+
+/// Raw punches exactly as received from devices, imports or manual entry
+model Punch {
+  id         Int         @id @default(autoincrement())
+  employeeId Int
+  employee   Employee    @relation(fields: [employeeId], references: [id])
+  punchedAt  DateTime
+  source     PunchSource
+  deviceId   Int?
+  device     Device?     @relation(fields: [deviceId], references: [id])
+  createdAt  DateTime    @default(now())
+
+  @@unique([employeeId, punchedAt])
+  @@index([punchedAt])
+}
+
+/// One processed row per employee per day, derived from punches, leave and calendar
+model AttendanceDay {
+  id             Int              @id @default(autoincrement())
+  employeeId     Int
+  employee       Employee         @relation(fields: [employeeId], references: [id])
+  date           DateTime         @db.Date
+  status         AttendanceStatus
+  checkIn        DateTime?
+  checkOut       DateTime?
+  workedMinutes  Int              @default(0)
+  lateMinutes    Int              @default(0)
+  isLate         Boolean          @default(false)
+  /// 0, 0.5 or 1 day covered by approved leave
+  leaveFraction  Float            @default(0)
+  leaveRequestId Int?
+  leaveRequest   LeaveRequest?    @relation(fields: [leaveRequestId], references: [id])
+  /// Set when HR edits the day; reprocessing will not overwrite it
+  isManual       Boolean          @default(false)
+  remarks        String?
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([employeeId, date])
+  @@index([date])
+}
+
+// ────────────────────────────── Leave ──────────────────────────────
+
+model LeaveType {
+  id              Int            @id @default(autoincrement())
+  code            String         @unique
+  name            String
+  /// Days per leave year; null = no limit (e.g. unpaid leave)
+  annualQuota     Float?
+  isPaid          Boolean        @default(true)
+  allowHalfDay    Boolean        @default(true)
+  carryForward    Boolean        @default(false)
+  maxCarryForward Float          @default(0)
+  color           String         @default("#6366f1")
+  isActive        Boolean        @default(true)
+  balances        LeaveBalance[]
+  requests        LeaveRequest[]
+}
+
+model LeaveBalance {
+  id             Int       @id @default(autoincrement())
+  employeeId     Int
+  employee       Employee  @relation(fields: [employeeId], references: [id])
+  leaveTypeId    Int
+  leaveType      LeaveType @relation(fields: [leaveTypeId], references: [id])
+  year           Int
+  allocated      Float     @default(0)
+  carriedForward Float     @default(0)
+  used           Float     @default(0)
+
+  @@unique([employeeId, leaveTypeId, year])
+}
+
+model LeaveRequest {
+  id            Int             @id @default(autoincrement())
+  employeeId    Int
+  employee      Employee        @relation(fields: [employeeId], references: [id])
+  leaveTypeId   Int
+  leaveType     LeaveType       @relation(fields: [leaveTypeId], references: [id])
+  startDate     DateTime        @db.Date
+  endDate       DateTime        @db.Date
+  isHalfDay     Boolean         @default(false)
+  days          Float
+  reason        String
+  status        LeaveStatus     @default(PENDING)
+  reviewedById  Int?
+  reviewedBy    User?           @relation("LeaveReviewer", fields: [reviewedById], references: [id])
+  reviewedAt    DateTime?
+  reviewComment String?
+  createdAt     DateTime        @default(now())
+  attendance    AttendanceDay[]
+
+  @@index([status])
+  @@index([employeeId, startDate])
+}
+
+// ───────────────────────────── Payroll ─────────────────────────────
+
+/// A salary rule. Combine these to model any country's payroll.
+model PayComponent {
+  id              Int           @id @default(autoincrement())
+  code            String        @unique
+  name            String
+  kind            ComponentKind
+  calcType        CalcType
+  /// FIXED: the amount
+  amount          Decimal?      @db.Decimal(12, 2)
+  /// PERCENTAGE: the rate (e.g. 12 for 12%)
+  percentage      Float?
+  /// Codes summed to form the base: other component codes, BASE_SALARY or GROSS
+  baseCodes       String[]      @default([])
+  /// Base is capped at this amount before the percentage/slab is applied
+  baseCap         Decimal?      @db.Decimal(12, 2)
+  minAmount       Decimal?      @db.Decimal(12, 2)
+  maxAmount       Decimal?      @db.Decimal(12, 2)
+  /// SLAB: [{ "from": 0, "to": 10000, "rate": 0, "amount": 0 }] (to = null for open-ended)
+  slabs           Json?
+  slabMode        SlabMode?
+  slabPeriod      SlabPeriod    @default(MONTHLY)
+  /// Only applies when earned gross is within this range (e.g. health insurance thresholds)
+  applyIfGrossMin Decimal?      @db.Decimal(12, 2)
+  applyIfGrossMax Decimal?      @db.Decimal(12, 2)
+  /// Earnings only: reduced for unpaid leave / absence / late deductions
+  prorate         Boolean       @default(true)
+  isTaxable       Boolean       @default(true)
+  sequence        Int           @default(100)
+  isActive        Boolean       @default(true)
+  description     String?
+
+  overrides EmployeeComponentOverride[]
+}
+
+/// Per-employee exceptions (a different fixed amount, rate, or switching a rule off)
+model EmployeeComponentOverride {
+  id          Int          @id @default(autoincrement())
+  employeeId  Int
+  employee    Employee     @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  componentId Int
+  component   PayComponent @relation(fields: [componentId], references: [id], onDelete: Cascade)
+  amount      Decimal?     @db.Decimal(12, 2)
+  percentage  Float?
+  isDisabled  Boolean      @default(false)
+
+  @@unique([employeeId, componentId])
+}
+
+model PayrollRun {
+  id                   Int           @id @default(autoincrement())
+  year                 Int
+  month                Int
+  status               PayrollStatus @default(DRAFT)
+  employeeCount        Int           @default(0)
+  totalGross           Decimal       @default(0) @db.Decimal(14, 2)
+  totalDeductions      Decimal       @default(0) @db.Decimal(14, 2)
+  totalEmployerContrib Decimal       @default(0) @db.Decimal(14, 2)
+  totalNet             Decimal       @default(0) @db.Decimal(14, 2)
+  processedAt          DateTime?
+  processedById        Int?
+  finalizedAt          DateTime?
+  finalizedById        Int?
+  createdAt            DateTime      @default(now())
+  payslips             Payslip[]
+
+  @@unique([year, month])
+}
+
+model Payslip {
+  id                    Int           @id @default(autoincrement())
+  payrollRunId          Int
+  payrollRun            PayrollRun    @relation(fields: [payrollRunId], references: [id], onDelete: Cascade)
+  employeeId            Int
+  employee              Employee      @relation(fields: [employeeId], references: [id])
+  // Snapshot so finalized payslips never change when master data changes
+  employeeCode          String
+  employeeName          String
+  departmentName        String
+  designationTitle      String
+  baseSalary            Decimal       @db.Decimal(12, 2)
+  divisorDays           Float
+  workingDays           Float
+  presentDays           Float
+  paidLeaveDays         Float
+  unpaidLeaveDays       Float
+  absentDays            Float
+  notEmployedDays       Float
+  lateCount             Int
+  lateMinutes           Int
+  lopDays               Float
+  latePenaltyDays       Float
+  grossEarnings         Decimal       @db.Decimal(12, 2)
+  lopDeduction          Decimal       @db.Decimal(12, 2)
+  lateDeduction         Decimal       @db.Decimal(12, 2)
+  totalDeductions       Decimal       @db.Decimal(12, 2)
+  employerContributions Decimal       @db.Decimal(12, 2)
+  netPay                Decimal       @db.Decimal(12, 2)
+  lines                 PayslipLine[]
+  createdAt             DateTime      @default(now())
+
+  @@unique([payrollRunId, employeeId])
+}
+
+model PayslipLine {
+  id        Int           @id @default(autoincrement())
+  payslipId Int
+  payslip   Payslip       @relation(fields: [payslipId], references: [id], onDelete: Cascade)
+  code      String
+  name      String
+  kind      ComponentKind
+  amount    Decimal       @db.Decimal(12, 2)
+  sequence  Int
+}
+
+// ───────────────────────────── Audit ─────────────────────────────
+
+model AuditLog {
+  id        Int      @id @default(autoincrement())
+  userId    Int?
+  user      User?    @relation(fields: [userId], references: [id])
+  action    String
+  entity    String
+  entityId  String?
+  details   Json?
+  createdAt DateTime @default(now())
+
+  @@index([entity, entityId])
+}

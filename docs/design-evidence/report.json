@@ -1,0 +1,33 @@
+{
+  "contract": "docs/DESIGN.md — HRMS ops tool, 'Calm Depth' direction, light/dark/system themes, brand-token theming, targets 390x844 and 1440x900",
+  "targetViewports": ["390x844", "1440x900"],
+  "accessibility": {
+    "status": "pass",
+    "evidence": "Visible brand focus ring on the focused employee search input (desktop-employees-empty.jpg). Theme switch is a labelled radiogroup (Light/Dark/System found by accessible name). Modal/palette use role=dialog with labels; Escape closes the palette (exercised). Text stays legible on light and dark surfaces in the captured screens. Not measured: numeric contrast ratios; prefers-reduced-motion is implemented (CSS media query + MotionConfig reducedMotion=user) but was not emulated in the browser."
+  },
+  "responsive": {
+    "status": "pass",
+    "evidence": "At 390x844 the dashboard has no horizontal overflow (scrollWidth 390 = clientWidth 390), header collapses to menu+search+theme toggle, and the navigation drawer slides in over a blurred backdrop (mobile-dashboard-dark.jpg, mobile-drawer-dark.jpg). At 1440x900 the sidebar, KPI row, charts and tables lay out without overlap; employee filters stay on one row after the width fix (desktop-employees-light.jpg)."
+  },
+  "contentStates": {
+    "loading": { "status": "pass", "evidence": "Auth-check spinner shown while the session loads on mobile (mobile-loading.jpg); dashboard and tables use skeleton placeholders with the same layout." },
+    "empty": { "status": "pass", "evidence": "Employee search with no matches shows an inbox icon, 'No records found' and '0 record(s)' (desktop-employees-empty.jpg)." },
+    "error": { "status": "pass", "evidence": "Wrong password on login shows the API's 'Invalid email or password' message inline with a shake animation; form stays editable (desktop-login-error.png)." },
+    "partial": { "status": "pass", "evidence": "Employees table shows one page of 20 with '485 records · page 1 of 25' and Prev/Next controls (desktop-employees-paged.jpg)." },
+    "success": { "status": "pass", "evidence": "Valid login navigates to the dashboard with the greeting and live KPIs (desktop-dashboard-light.jpg). Toast success styling was redesigned but not re-captured in this pass." },
+    "permission": { "status": "pass", "evidence": "Verified at the API earlier in this session: an employee login gets 403 on HR endpoints and 404 on draft payslips; the layout redirects non-HR users to /me. The employee-role UI was not re-rendered in this design pass." }
+  },
+  "renderedEvidence": [
+    { "viewport": "1440x900", "artifact": "desktop-login-light.jpg", "observation": "Split login: dark 3D product scene (attendance ring, payslip, biometric scan, notification cards in perspective) and light sign-in form with theme switch." },
+    { "viewport": "1440x900", "artifact": "desktop-login-error.png", "observation": "Inline error state on failed sign-in." },
+    { "viewport": "1440x900", "artifact": "desktop-dashboard-light.jpg", "observation": "Light dashboard: greeting, quick actions, 3D KPI tiles, attendance area chart, today ring." },
+    { "viewport": "1440x900", "artifact": "desktop-dashboard-dark.jpg", "observation": "Dark dashboard after toggling theme: remapped neutrals and status colours, brand-tinted active nav, smoothed trend without weekly-off dips." },
+    { "viewport": "1440x900", "artifact": "desktop-employees-light.jpg", "observation": "Employees table with filters on one row and staggered row entrance." },
+    { "viewport": "1440x900", "artifact": "desktop-employees-paged.jpg", "observation": "Partial/paged table footer with record count and pagination." },
+    { "viewport": "1440x900", "artifact": "desktop-employees-empty.jpg", "observation": "Empty state and visible focus ring." },
+    { "viewport": "1440x900", "artifact": "desktop-command-palette.jpg", "observation": "Ctrl+K palette searching employees live ('priya' → 5 matches)." },
+    { "viewport": "390x844", "artifact": "mobile-dashboard-dark.jpg", "observation": "Phone layout of the dark dashboard without horizontal scroll." },
+    { "viewport": "390x844", "artifact": "mobile-drawer-dark.jpg", "observation": "Mobile navigation drawer open." },
+    { "viewport": "390x844", "artifact": "mobile-loading.jpg", "observation": "Loading state while the session is checked." }
+  ]
+}
